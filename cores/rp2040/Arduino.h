@@ -24,7 +24,7 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
-// Wacky deprecated AVR compatibilty functions
+// Wacky deprecated AVR compatibility functions
 #include "stdlib_noniso.h"
 
 #include "api/ArduinoAPI.h"
@@ -36,6 +36,18 @@
 
 #include "debug_internal.h"
 
+// Try and make the best of the old Arduino abs() macro.  When in C++, use
+// the sane std::abs() call, but for C code use their macro since stdlib abs()
+// is int but their macro "works" for everything (with potential side effects)
+#ifdef abs
+#undef abs
+#endif // abs
+#ifdef __cplusplus
+using std::abs;
+#else
+#define abs(x) ((x)>0?(x):-(x))
+#endif
+
 #ifdef __cplusplus
 extern "C"{
 #endif // __cplusplus
@@ -45,7 +57,7 @@ extern "C"{
 #define clockCyclesToMicroseconds(a) ( (a) / clockCyclesPerMicrosecond() )
 #define microsecondsToClockCycles(a) ( (a) * clockCyclesPerMicrosecond() )
 
-// Disable/reenable all interrupts.  Safely handles nested disables
+// Disable/re-enable all interrupts.  Safely handles nested disables
 void interrupts();
 void noInterrupts();
 
@@ -53,7 +65,7 @@ void noInterrupts();
 void attachInterrupt(pin_size_t pin, voidFuncPtr callback, PinStatus mode);
 void detachInterrupt(pin_size_t pin);
 
-// AVR compatibilty macros...naughty and accesses the HW directly
+// AVR compatibility macros...naughty and accesses the HW directly
 #define digitalPinToPort(pin)       (0)
 #define digitalPinToBitMask(pin)    (1UL << (pin))
 #define digitalPinToTimer(pin)      (0)
