@@ -1,23 +1,23 @@
 /*
- * EEPROM.cpp - RP2040 EEPROM emulation
- * Copyright (c) 2021 Earle F. Philhower III. All rights reserved.
- *
- * Based on ESP8266 EEPROM library, which is
- * Copyright (c) 2014 Ivan Grokhotkov. All rights reserved.
- *
- * This library is free software; you can redistribute it and/or
- * modify it under the terms of the GNU Lesser General Public
- * License as published by the Free Software Foundation; either
- * version 2.1 of the License, or (at your option) any later version.
- *
- * This library is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
- * Lesser General Public License for more details.
- * 
- * You should have received a copy of the GNU Lesser General Public
- * License along with this library; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
+    EEPROM.cpp - RP2040 EEPROM emulation
+    Copyright (c) 2021 Earle F. Philhower III. All rights reserved.
+
+    Based on ESP8266 EEPROM library, which is
+    Copyright (c) 2014 Ivan Grokhotkov. All rights reserved.
+
+    This library is free software; you can redistribute it and/or
+    modify it under the terms of the GNU Lesser General Public
+    License as published by the Free Software Foundation; either
+    version 2.1 of the License, or (at your option) any later version.
+
+    This library is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+    Lesser General Public License for more details.
+
+    You should have received a copy of the GNU Lesser General Public
+    License along with this library; if not, write to the Free Software
+    Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 */
 
 #include <Arduino.h>
@@ -25,11 +25,19 @@
 #include <hardware/flash.h>
 #include <hardware/sync.h>
 
+#ifdef USE_TINYUSB
+// For Serial when selecting TinyUSB.  Can't include in the core because Arduino IDE
+// will not link in libraries called from the core.  Instead, add the header to all
+// the standard libraries in the hope it will still catch some user cases where they
+// use these libraries.
+// See https://github.com/earlephilhower/arduino-pico/issues/167#issuecomment-848622174
+#include <Adafruit_TinyUSB.h>
+#endif
+
 extern "C" uint8_t _EEPROM_start;
 
 EEPROMClass::EEPROMClass(void)
-: _sector(&_EEPROM_start)
-{
+    : _sector(&_EEPROM_start) {
 }
 
 void EEPROMClass::begin(size_t size) {
@@ -43,7 +51,7 @@ void EEPROMClass::begin(size_t size) {
     if (_data && size != _size) {
         delete[] _data;
         _data = new uint8_t[size];
-    } else if(!_data) {
+    } else if (!_data) {
         _data = new uint8_t[size];
     }
 
@@ -60,7 +68,7 @@ bool EEPROMClass::end() {
     }
 
     retval = commit();
-    if  (_data) {
+    if (_data) {
         delete[] _data;
     }
     _data = 0;
@@ -98,12 +106,15 @@ void EEPROMClass::write(int const address, uint8_t const value) {
 }
 
 bool EEPROMClass::commit() {
-    if (!_size)
+    if (!_size) {
         return false;
-    if (!_dirty)
+    }
+    if (!_dirty) {
         return true;
-    if (!_data)
+    }
+    if (!_data) {
         return false;
+    }
 
     noInterrupts();
     rp2040.idleOtherCore();

@@ -1,26 +1,35 @@
 /*
- * SPI Master library for the Raspberry Pi Pico RP2040
- *
- * Copyright (c) 2021 Earle F. Philhower, III <earlephilhower@yahoo.com>
- *
- * This library is free software; you can redistribute it and/or
- * modify it under the terms of the GNU Lesser General Public
- * License as published by the Free Software Foundation; either
- * version 2.1 of the License, or (at your option) any later version.
- *
- * This library is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
- * Lesser General Public License for more details.
- *
- * You should have received a copy of the GNU Lesser General Public
- * License along with this library; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
- */
+    SPI Master library for the Raspberry Pi Pico RP2040
+
+    Copyright (c) 2021 Earle F. Philhower, III <earlephilhower@yahoo.com>
+
+    This library is free software; you can redistribute it and/or
+    modify it under the terms of the GNU Lesser General Public
+    License as published by the Free Software Foundation; either
+    version 2.1 of the License, or (at your option) any later version.
+
+    This library is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+    Lesser General Public License for more details.
+
+    You should have received a copy of the GNU Lesser General Public
+    License along with this library; if not, write to the Free Software
+    Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
+*/
 
 #include "SPI.h"
 #include <hardware/spi.h>
 #include <hardware/gpio.h>
+
+#ifdef USE_TINYUSB
+// For Serial when selecting TinyUSB.  Can't include in the core because Arduino IDE
+// will not link in libraries called from the core.  Instead, add the header to all
+// the standard libraries in the hope it will still catch some user cases where they
+// use these libraries.
+// See https://github.com/earlephilhower/arduino-pico/issues/167#issuecomment-848622174
+#include <Adafruit_TinyUSB.h>
+#endif
 
 SPIClassRP2040::SPIClassRP2040(spi_inst_t *spi, pin_size_t rx, pin_size_t cs, pin_size_t sck, pin_size_t tx) {
     _spi = spi;
@@ -34,26 +43,34 @@ SPIClassRP2040::SPIClassRP2040(spi_inst_t *spi, pin_size_t rx, pin_size_t cs, pi
 }
 
 inline spi_cpol_t SPIClassRP2040::cpol() {
-    switch(_spis.getDataMode()) {
-        case SPI_MODE0: return SPI_CPOL_0; 
-        case SPI_MODE1: return SPI_CPOL_0;
-        case SPI_MODE2: return SPI_CPOL_1;
-        case SPI_MODE3: return SPI_CPOL_1;
+    switch (_spis.getDataMode()) {
+    case SPI_MODE0:
+        return SPI_CPOL_0;
+    case SPI_MODE1:
+        return SPI_CPOL_0;
+    case SPI_MODE2:
+        return SPI_CPOL_1;
+    case SPI_MODE3:
+        return SPI_CPOL_1;
     }
     // Error
     return SPI_CPOL_0;
 }
 
 inline spi_cpha_t SPIClassRP2040::cpha() {
-    switch(_spis.getDataMode()) {
-        case SPI_MODE0: return SPI_CPHA_0;
-        case SPI_MODE1: return SPI_CPHA_1;
-        case SPI_MODE2: return SPI_CPHA_0;
-        case SPI_MODE3: return SPI_CPHA_1;
+    switch (_spis.getDataMode()) {
+    case SPI_MODE0:
+        return SPI_CPHA_0;
+    case SPI_MODE1:
+        return SPI_CPHA_1;
+    case SPI_MODE2:
+        return SPI_CPHA_0;
+    case SPI_MODE3:
+        return SPI_CPHA_1;
     }
     // Error
     return SPI_CPHA_0;
-}    
+}
 
 inline uint8_t SPIClassRP2040::reverseByte(uint8_t b) {
     b = (b & 0xF0) >> 4 | (b & 0x0F) << 4;
@@ -63,31 +80,33 @@ inline uint8_t SPIClassRP2040::reverseByte(uint8_t b) {
 }
 
 inline uint16_t SPIClassRP2040::reverse16Bit(uint16_t w) {
-    return ( reverseByte(w & 0xff) << 8 ) | ( reverseByte(w >> 8) );
+    return (reverseByte(w & 0xff) << 8) | (reverseByte(w >> 8));
 }
 
 // The HW can't do LSB first, only MSB first, so need to bitreverse
 void SPIClassRP2040::adjustBuffer(const void *s, void *d, size_t cnt, bool by16) {
     if (_spis.getBitOrder() == MSBFIRST) {
-        memcpy(d, s, cnt * (by16? 2 : 1));
+        memcpy(d, s, cnt * (by16 ? 2 : 1));
     } else if (!by16) {
         const uint8_t *src = (const uint8_t *)s;
         uint8_t *dst = (uint8_t *)d;
         for (size_t i = 0; i < cnt; i++) {
-          *(dst++) = reverseByte( *(src++) );
+            *(dst++) = reverseByte(*(src++));
         }
     } else { /* by16 */
         const uint16_t *src = (const uint16_t *)s;
         uint16_t *dst = (uint16_t *)d;
         for (size_t i = 0; i < cnt; i++) {
-          *(dst++) = reverse16Bit( *(src++) );
+            *(dst++) = reverse16Bit(*(src++));
         }
     }
 }
 
 byte SPIClassRP2040::transfer(uint8_t data) {
     uint8_t ret;
-    if (!_initted) return 0;
+    if (!_initted) {
+        return 0;
+    }
     data = (_spis.getBitOrder() == MSBFIRST) ? data : reverseByte(data);
     spi_set_format(_spi, 8, cpol(), cpha(), SPI_MSB_FIRST);
     DEBUGSPI("SPI::transfer(%02x), cpol=%d, cpha=%d\n", data, cpol(), cpha());
@@ -122,8 +141,44 @@ void SPIClassRP2040::transfer(void *buf, size_t count) {
     DEBUGSPI("SPI::transfer completed\n");
 }
 
+void SPIClassRP2040::transfer(void *txbuf, void *rxbuf, size_t count) {
+    if (!_initted) {
+        return;
+    }
+
+    DEBUGSPI("SPI::transfer(%p, %p, %d)\n", txbuf, rxbuf, count);
+    uint8_t *txbuff = reinterpret_cast<uint8_t *>(txbuf);
+    uint8_t *rxbuff = reinterpret_cast<uint8_t *>(rxbuf);
+
+    // MSB version is easy!
+    if (_spis.getBitOrder() == MSBFIRST) {
+        spi_set_format(_spi, 8, cpol(), cpha(), SPI_MSB_FIRST);
+
+        if (rxbuf == NULL) { // transmit only!
+            spi_write_blocking(_spi, txbuff, count);
+            return;
+        }
+        if (txbuf == NULL) { // receive only!
+            spi_read_blocking(_spi, 0xFF, rxbuff, count);
+            return;
+        }
+        // transmit and receive!
+        spi_write_read_blocking(_spi, txbuff, rxbuff, count);
+        return;
+    }
+
+    // If its LSB this isn't nearly as fun, we'll just let transfer(x) do it :(
+    for (size_t i = 0; i < count; i++) {
+        *rxbuff = transfer(*txbuff);
+        *rxbuff = (_spis.getBitOrder() == MSBFIRST) ? *rxbuff : reverseByte(*rxbuff);
+        txbuff++;
+        rxbuff++;
+    }
+    DEBUGSPI("SPI::transfer completed\n");
+}
+
 void SPIClassRP2040::beginTransaction(SPISettings settings) {
-    DEBUGSPI("SPI::beginTransaction(clk=%d, bo=%s\n", _spis.getClockFreq(), (_spis.getBitOrder() == MSBFIRST) ? "MSB":"LSB");
+    DEBUGSPI("SPI::beginTransaction(clk=%d, bo=%s\n", _spis.getClockFreq(), (_spis.getBitOrder() == MSBFIRST) ? "MSB" : "LSB");
     _spis = settings;
     if (_initted) {
         DEBUGSPI("SPI: deinitting currently active SPI\n");
@@ -145,7 +200,8 @@ void SPIClassRP2040::endTransaction(void) {
 
 bool SPIClassRP2040::setRX(pin_size_t pin) {
     constexpr uint32_t valid[2] = { __bitset({0, 4, 16, 20}) /* SPI0 */,
-                                    __bitset({8, 12, 24, 28})  /* SPI1 */};
+                                    __bitset({8, 12, 24, 28})  /* SPI1 */
+                                  };
     if (_running) {
         return false;
     } else if ((1 << pin) & valid[spi_get_index(_spi)]) {
@@ -158,7 +214,8 @@ bool SPIClassRP2040::setRX(pin_size_t pin) {
 
 bool SPIClassRP2040::setCS(pin_size_t pin) {
     constexpr uint32_t valid[2] = { __bitset({1, 5, 17, 21}) /* SPI0 */,
-                                    __bitset({9, 13, 25, 29})  /* SPI1 */};
+                                    __bitset({9, 13, 25, 29})  /* SPI1 */
+                                  };
     if (_running) {
         return false;
     } else if ((1 << pin) & valid[spi_get_index(_spi)]) {
@@ -171,7 +228,8 @@ bool SPIClassRP2040::setCS(pin_size_t pin) {
 
 bool SPIClassRP2040::setSCK(pin_size_t pin) {
     constexpr uint32_t valid[2] = { __bitset({2, 6, 18, 22}) /* SPI0 */,
-                                    __bitset({10, 14, 26})  /* SPI1 */};
+                                    __bitset({10, 14, 26})  /* SPI1 */
+                                  };
     if (_running) {
         return false;
     } else if ((1 << pin) & valid[spi_get_index(_spi)]) {
@@ -184,7 +242,8 @@ bool SPIClassRP2040::setSCK(pin_size_t pin) {
 
 bool SPIClassRP2040::setTX(pin_size_t pin) {
     constexpr uint32_t valid[2] = { __bitset({3, 7, 19, 23}) /* SPI0 */,
-                                    __bitset({11, 15, 27})  /* SPI1 */};
+                                    __bitset({11, 15, 27})  /* SPI1 */
+                                  };
     if (_running) {
         return false;
     } else if ((1 << pin) & valid[spi_get_index(_spi)]) {
@@ -219,17 +278,17 @@ void SPIClassRP2040::end() {
 }
 
 void SPIClassRP2040::setBitOrder(BitOrder order) {
-    _spis = SPISettings( _spis.getClockFreq(), order, _spis.getDataMode() );
+    _spis = SPISettings(_spis.getClockFreq(), order, _spis.getDataMode());
     beginTransaction(_spis);
 }
 
 void SPIClassRP2040::setDataMode(uint8_t uc_mode) {
-    _spis = SPISettings( _spis.getClockFreq(), _spis.getBitOrder(), uc_mode );
+    _spis = SPISettings(_spis.getClockFreq(), _spis.getBitOrder(), uc_mode);
     beginTransaction(_spis);
 }
 
 void SPIClassRP2040::setClockDivider(uint8_t uc_div) {
-  (void) uc_div; // no-op
+    (void) uc_div; // no-op
 }
 
 SPIClassRP2040 SPI(spi0, PIN_SPI0_MISO, PIN_SPI0_SS, PIN_SPI0_SCK, PIN_SPI0_MOSI);

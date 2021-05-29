@@ -1,25 +1,34 @@
 /*
- * I2S Master library for the Raspberry Pi Pico RP2040
- *
- * Copyright (c) 2021 Earle F. Philhower, III <earlephilhower@yahoo.com>
- *
- * This library is free software; you can redistribute it and/or
- * modify it under the terms of the GNU Lesser General Public
- * License as published by the Free Software Foundation; either
- * version 2.1 of the License, or (at your option) any later version.
- *
- * This library is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
- * Lesser General Public License for more details.
- *
- * You should have received a copy of the GNU Lesser General Public
- * License along with this library; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
- */
+    I2S Master library for the Raspberry Pi Pico RP2040
+
+    Copyright (c) 2021 Earle F. Philhower, III <earlephilhower@yahoo.com>
+
+    This library is free software; you can redistribute it and/or
+    modify it under the terms of the GNU Lesser General Public
+    License as published by the Free Software Foundation; either
+    version 2.1 of the License, or (at your option) any later version.
+
+    This library is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+    Lesser General Public License for more details.
+
+    You should have received a copy of the GNU Lesser General Public
+    License along with this library; if not, write to the Free Software
+    Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
+*/
 
 #include <Arduino.h>
 #include "I2S.h"
+
+#ifdef USE_TINYUSB
+// For Serial when selecting TinyUSB.  Can't include in the core because Arduino IDE
+// will not link in libraries called from the core.  Instead, add the header to all
+// the standard libraries in the hope it will still catch some user cases where they
+// use these libraries.
+// See https://github.com/earlephilhower/arduino-pico/issues/167#issuecomment-848622174
+#include <Adafruit_TinyUSB.h>
+#endif
 
 I2SClass::I2SClass() {
     _running = false;
@@ -206,7 +215,7 @@ size_t I2SClass::write(const void *buffer, size_t size) {
         _curBuff->sample_count += writeSize;
         inSamples += writeSize;
         written += writeSize;
-	wantToWrite -= writeSize;
+        wantToWrite -= writeSize;
         if (_curBuff->sample_count == _curBuff->max_sample_count) {
             _audio_format.sample_freq = _freq;
             give_audio_buffer(_pool, _curBuff);
