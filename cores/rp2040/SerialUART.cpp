@@ -115,7 +115,11 @@ int SerialUART::peek() {
     if (_peek >= 0) {
         return _peek;
     }
-    _peek = uart_getc(_uart);
+    if (uart_is_readable_within_us(_uart, _timeout * 1000)) {
+        _peek = uart_getc(_uart);
+    } else {
+        _peek = -1; // Timeout
+    }
     return _peek;
 }
 
@@ -129,7 +133,11 @@ int SerialUART::read() {
         _peek = -1;
         return ret;
     }
-    return uart_getc(_uart);
+    if (uart_is_readable_within_us(_uart, _timeout * 1000)) {
+        return uart_getc(_uart);
+    } else {
+        return -1; // Timeout
+    }
 }
 
 int SerialUART::available() {
@@ -153,7 +161,7 @@ void SerialUART::flush() {
     if (!_running || !m) {
         return;
     }
-    uart_default_tx_wait_blocking();
+    uart_tx_wait_blocking(_uart);
 }
 
 size_t SerialUART::write(uint8_t c) {
